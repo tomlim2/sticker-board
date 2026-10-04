@@ -115,11 +115,27 @@ export function cutSticker(frames) {
   const mask = new Uint8Array(n);
   for (let i = 0; i < n; i++) mask[i] = outline[i] * 255;
 
+  // 7. 칼선의 볼록 껍질: 어느 방향으로든 스티커가 실제로 차지하는 길이를 재는 데 씀 (사각 테두리 상자는 동그란 모양에서 모서리만큼 부풀려짐)
+  const edges = [];
+  for (let y = 0; y < H; y += 2) {
+    let left = -1;
+    let right = -1;
+    for (let x = 0; x < W; x++) {
+      if (mask[y * W + x] > 127) {
+        if (left < 0) left = x;
+        right = x;
+      }
+    }
+    if (left >= 0) edges.push([left, y], [right, y]);
+  }
+  const hull = convexHull(edges);
+
   return {
     canvas: out,
     compose,
     shadow,
     mask,
+    hull,
     width: W,
     height: H,
     bounds: { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 },
@@ -318,6 +334,23 @@ function alphaBox(alpha, width, height) {
     }
   }
   return maxX < 0 ? null : { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
+}
+
+// 볼록 껍질 (monotone chain). points: [[x, y], …]
+function convexHull(points) {
+  const sorted = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  if (sorted.length < 3) return sorted;
+  const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const half = (list) => {
+    const chain = [];
+    for (const p of list) {
+      while (chain.length >= 2 && cross(chain[chain.length - 2], chain[chain.length - 1], p) <= 0) chain.pop();
+      chain.push(p);
+    }
+    chain.pop();
+    return chain;
+  };
+  return [...half(sorted), ...half(sorted.reverse())];
 }
 
 // 상자 흐림 3번 = 가우시안 근사 (σ ≈ radius)

@@ -89,13 +89,8 @@ function buildDesign(meta, frames) {
     mask: art.mask,
     maskW: art.width,
     maskH: art.height,
-    // 테두리까지 포함한 실제 스티커 영역. 스티커 중심 기준, 화면 방향(y 아래)
-    bounds: {
-      minX: localX(art.bounds.x),
-      minY: localY(art.bounds.y),
-      maxX: localX(art.bounds.x + art.bounds.w),
-      maxY: localY(art.bounds.y + art.bounds.h),
-    },
+    // 테두리까지 포함한 칼선의 볼록 껍질. 스티커 중심 기준, 화면 방향(y 아래)
+    hull: art.hull.map(([px, py]) => ({ x: localX(px), y: localY(py) })),
     // 움직이는 스티커: 프레임이 바뀔 때마다 compose 로 텍스처 캔버스를 다시 그림 (같은 도안의 스티커는 다 같이 움직임)
     frames: frames.length > 1 ? frames : null,
     frame: 0,
@@ -179,9 +174,12 @@ function makeSticker(design, { x = 0, y = 0, rotation = 0, scale = 1, onSheet = 
     bounce: 0, // 붙일 때 꾹 눌렸다 돌아오는 스프링
     bounceV: 0,
     sway: 0, // 들고 흔들 때 기울기
+    swing: 0, // 떼어 낸 순간 손끝에 매달려 좌우로 흔들리는 각도 (스프링)
+    swingV: 0,
     opacity: 1,
     peel: null, // { point, normal, radius } 스티커 로컬, 화면 방향
     settle: null, // 벗기다 놓으면 다시 붙는 중
+    unfold: null, // 떼어 낸 직후 접힌 게 펴지는 중 { dir, dist, velocity }
     fly: null, // 시트에서 톡 쳐서 판으로 날아가는 중
     removing: false,
     uniforms,
@@ -240,7 +238,7 @@ function stickDown(s) {
  */
 function setPeel(s, dir, dist) {
   const normal = { x: -dir.x, y: -dir.y };
-  const { max, min } = extent(s.design.bounds, normal);
+  const { max, min } = extent(s.design.hull, normal);
   const radius = clamp(dist * 0.2, 1, s.design.size * 0.08);
   // 접힌 가장자리가 손 이동량만큼 따라오려면 접히는 선은 그 절반만 물러나면 됨 (+ 말린 반원 몫)
   const line = max - dist / 2 - (Math.PI * radius) / 2;
@@ -248,14 +246,16 @@ function setPeel(s, dir, dist) {
   return (max - line) / (max - min);
 }
 
-function extent(b, v) {
-  const projections = [
-    b.minX * v.x + b.minY * v.y,
-    b.maxX * v.x + b.minY * v.y,
-    b.minX * v.x + b.maxY * v.y,
-    b.maxX * v.x + b.maxY * v.y,
-  ];
-  return { max: Math.max(...projections), min: Math.min(...projections) };
+// 스티커 모양(볼록 껍질)을 v 방향으로 비췄을 때 양 끝
+function extent(hull, v) {
+  let max = -Infinity;
+  let min = Infinity;
+  for (const p of hull) {
+    const u = p.x * v.x + p.y * v.y;
+    if (u > max) max = u;
+    if (u < min) min = u;
+  }
+  return { max, min };
 }
 
 /** 화면 좌표 → 스티커 로컬 (중심 기준, 회전·크기 되돌림, y 아래) */
@@ -271,7 +271,7 @@ function toLocal(s, x, y) {
 function pick(x, y) {
   let best = null;
   for (const s of stickers) {
-    if (s.removing || s.fly || s.settle || s.pending) continue;
+    if (s.removing || s.fly || s.settle || s.unfold || s.pending) continue;
     if (best && s.z < best.sticker.z) continue;
     const local = toLocal(s, x, y);
     const { w, h, mask, maskW, maskH } = s.design;
@@ -309,6 +309,31 @@ function step(s, dt) {
   if (s !== action?.sticker && Math.abs(s.sway) > 0.0005) {
     s.sway -= s.sway * approach(dt, 10);
     moving = true;
+  }
+
+  if (s.unfold) {
+    // 접힌 정도(dist)를 0 으로 당기는 스프링. 들고 있을 땐 덜 감쇠돼서 0 을 지나 반대쪽 끝이 살짝 말렸다 돌아오고,
+    // 내려놓으면 임계 감쇠라 출렁임 없이 바로 펴짐
+    const u = s.unfold;
+    const held = action?.sticker === s;
+    u.velocity += (-196 * u.dist - (held ? 14 : 28) * u.velocity) * dt;
+    u.dist += u.velocity * dt;
+    if (Math.abs(u.dist) < 0.5 && Math.abs(u.velocity) < 5) {
+      s.unfold = null;
+      s.peel = null;
+    } else {
+      setPeel(s, u.dist >= 0 ? u.dir : { x: -u.dir.x, y: -u.dir.y }, Math.abs(u.dist));
+    }
+    moving = true;
+  }
+
+  if (Math.abs(s.swing) > 0.0005 || Math.abs(s.swingV) > 0.005) {
+    s.swingV += (-90 * s.swing - 3.2 * s.swingV) * dt;
+    s.swing += s.swingV * dt;
+    moving = true;
+  } else {
+    s.swing = 0;
+    s.swingV = 0;
   }
 
   if (s.settle) {
@@ -354,7 +379,7 @@ function step(s, dt) {
 function sync(s) {
   const H = innerHeight;
   const k = s.scale * (1 + 0.06 * s.lift) * (1 + s.bounce);
-  const rotation = -(s.rotation + s.sway); // 화면(시계 방향 +) → three(반시계 방향 +)
+  const rotation = -(s.rotation + s.sway + s.swing); // 화면(시계 방향 +) → three(반시계 방향 +)
   s.group.position.set(s.x, H - s.y, 0);
   s.group.rotation.z = rotation;
   s.group.scale.set(k, k, k);
@@ -463,10 +488,14 @@ function peelMove() {
 
 function detach() {
   const s = action.sticker;
-  s.peel = null;
   action.mode = 'hold';
+  // 바로 평평해지지 않고 접힌 채로 떨어져서, 스프링으로 휙 펴지며 반대쪽 끝이 살짝 들썩였다 가라앉음
+  s.unfold = { dir: action.dir, dist: action.dist, velocity: 0 };
+  // 손끝에 매달린 것처럼 좌우로 달랑달랑
+  const side = Math.abs(action.dir.x) > 0.2 ? -Math.sign(action.dir.x) : Math.sign(rand(-1, 1));
+  s.swingV = side * rand(1.1, 1.5);
   s.liftTarget = 1;
-  s.bounceV = 1.2; // 톡 떨어지며 튀어 오름
+  s.bounceV = 0.6;
   if (s.pending) {
     s.pending = false;
     s.targetScale = 1;
