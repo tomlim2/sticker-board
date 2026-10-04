@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#24262a" />
+    <title>스티커 보드</title>
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+  </head>
+  <body data-bg="laptop">
+    <div id="board" class="board"></div>
+
+    <section id="sheet" class="sheet" aria-label="스티커 시트">
+      <div id="slots" class="slots">
+        <label class="add" title="이미지로 스티커 만들기">
+          <input id="file" type="file" accept="image/*" multiple />
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          <span>PNG·GIF</span>
+        </label>
+      </div>
+      <p class="sheet-label">놓으면 시트로 돌아가요</p>
+    </section>
+
+    <!-- 스티커는 전부 이 WebGL 캔버스에 그림. 입력은 window 에서 받아서 직접 판정 -->
+    <canvas id="stage" aria-hidden="true"></canvas>
+
+    <header class="hud">
+      <div class="brand">
+        <h1>STICKER BOARD</h1>
+        <p class="hint hint-mouse">시트에서 끌어 떼고 아무 데나 붙이기 · 들고서 휠로 회전, ⇧+휠로 크기 · PNG·GIF 를 끌어다 놓으면 새 스티커 (GIF 는 움직여요)</p>
+        <p class="hint hint-touch">끌어서 떼고 붙이기 · 두 손가락으로 돌리고 키우기 · + 로 PNG·GIF 추가</p>
+      </div>
+      <div class="tools">
+        <div class="swatches" role="radiogroup" aria-label="배경">
+          <button type="button" role="radio" data-bg="laptop" aria-label="노트북"></button>
+          <button type="button" role="radio" data-bg="mat" aria-label="커팅 매트"></button>
+          <button type="button" role="radio" data-bg="kraft" aria-label="크라프트지"></button>
+        </div>
+        <button id="sound" class="tool" type="button" aria-label="소리" aria-pressed="true">
+          <svg class="icon-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor" />
+            <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+            <path d="M18.5 5.5a9 9 0 0 1 0 13" />
+          </svg>
+          <svg class="icon-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor" />
+            <path d="m16 9 6 6m0-6-6 6" />
+          </svg>
+        </button>
+        <button id="clear" class="tool tool-text" type="button">판 비우기</button>
+      </div>
+    </header>
+
+    <button id="slot-remove" class="slot-remove" type="button" aria-label="이 스티커 지우기" title="지우기 (붙인 것도 같이)" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true">
+        <path d="m7 7 10 10M17 7 7 17" />
+      </svg>
+    </button>
+    <div id="drop" class="drop" hidden><p>놓으면 스티커가 돼요</p></div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

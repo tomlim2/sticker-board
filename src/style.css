@@ -1,0 +1,441 @@
+:root {
+  --ui: #f4f2ec;
+  --ui-dim: rgba(244, 242, 236, 0.62);
+  --glass: rgba(18, 19, 22, 0.45);
+  --line: rgba(255, 255, 255, 0.14);
+  --paper-ink: rgba(70, 58, 38, 0.62);
+  font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Pretendard', 'Noto Sans KR', 'Segoe UI',
+    system-ui, sans-serif;
+  color: var(--ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+body[data-bg='kraft'] {
+  --ui: #2d2116;
+  --ui-dim: rgba(45, 33, 22, 0.66);
+  --glass: rgba(255, 250, 240, 0.42);
+  --line: rgba(45, 33, 22, 0.16);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: #1d1e22;
+  color: var(--ui); /* 배경에 따라 body 에서 바뀐 --ui 를 다시 받게 */
+  touch-action: none;
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body.can-grab {
+  cursor: grab;
+}
+
+body.is-holding,
+body.is-holding * {
+  cursor: grabbing !important;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+button:focus-visible,
+.add:focus-within {
+  outline: 2px solid var(--ui);
+  outline-offset: 2px;
+}
+
+/* ── 판 (배경) ───────────────────── */
+
+.board {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  transition: background-color 0.4s;
+}
+
+/* 아주 옅은 종이·금속 결 */
+.board::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.12;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+body[data-bg='laptop'] .board {
+  background: radial-gradient(130% 100% at 50% 28%, #4b4e56 0%, #2d2f34 52%, #1b1c20 100%);
+}
+
+body[data-bg='mat'] .board {
+  background-color: #2e6853;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.17) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.17) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size:
+    120px 120px,
+    120px 120px,
+    24px 24px,
+    24px 24px;
+  background-position: center;
+}
+
+body[data-bg='kraft'] .board {
+  background: radial-gradient(120% 100% at 50% 30%, #d6b083 0%, #bd925f 100%);
+}
+
+body[data-bg='kraft'] .board::after {
+  opacity: 0.25;
+}
+
+/* ── 스티커 시트 (이형지) ─────────── */
+
+.sheet {
+  position: fixed;
+  left: 50%;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  z-index: 1;
+  width: min(920px, calc(100vw - 24px));
+  padding: 14px 16px 20px;
+  transform: translateX(-50%);
+  border-radius: 20px;
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0) 45%),
+    repeating-linear-gradient(-45deg, rgba(70, 58, 38, 0.035) 0 1px, transparent 1px 7px),
+    #eeebe3;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 2px 4px rgba(0, 0, 0, 0.18),
+    0 22px 44px -20px rgba(0, 0, 0, 0.6);
+  transition: box-shadow 0.18s;
+}
+
+.sheet::after {
+  content: 'PEEL & STICK';
+  position: absolute;
+  right: 16px;
+  bottom: 6px;
+  font:
+    600 9px/1 ui-monospace,
+    Menlo,
+    monospace;
+  letter-spacing: 0.22em;
+  color: rgba(70, 58, 38, 0.32);
+}
+
+.sheet.is-target {
+  box-shadow:
+    0 0 0 3px #ff5d73,
+    0 2px 4px rgba(0, 0, 0, 0.18),
+    0 22px 44px -20px rgba(0, 0, 0, 0.6);
+}
+
+.sheet-label {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  margin: 0;
+  padding: 7px 14px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: #ff5d73;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+
+.sheet.is-target .sheet-label {
+  opacity: 1;
+}
+
+.slots {
+  --slot: 84px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* 칸은 자리만 잡고, 스티커는 WebGL 이 그 위에 그림 */
+.slot {
+  width: var(--slot);
+  height: var(--slot);
+  border-radius: 14px;
+}
+
+.add {
+  width: var(--slot);
+  height: var(--slot);
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 2px;
+  border: 2px dashed rgba(70, 58, 38, 0.28);
+  border-radius: 14px;
+  color: var(--paper-ink);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.add:hover {
+  border-color: rgba(70, 58, 38, 0.5);
+  background: rgba(70, 58, 38, 0.05);
+}
+
+.add input {
+  display: none;
+}
+
+.add svg {
+  width: 22px;
+  height: 22px;
+}
+
+.slot-remove {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 4;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #2b2b30;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.slot-remove svg {
+  width: 12px;
+  height: 12px;
+}
+
+.slot-remove[hidden] {
+  display: none;
+}
+
+/* ── WebGL 캔버스 ─────────────────── */
+
+#stage {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+
+/* ── 위쪽 HUD ────────────────────── */
+
+.hud {
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top));
+  left: 18px;
+  right: 18px;
+  z-index: 3;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  pointer-events: none;
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.24em;
+}
+
+.hint {
+  max-width: 440px;
+  margin: 7px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ui-dim);
+}
+
+.hint-touch {
+  display: none;
+}
+
+@media (hover: none) {
+  .hint-mouse {
+    display: none;
+  }
+
+  .hint-touch {
+    display: block;
+  }
+}
+
+.tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.swatches {
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+.swatches button {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+
+.swatches button[aria-checked='true'] {
+  border-color: var(--ui);
+}
+
+.swatches [data-bg='laptop'] {
+  background: #3a3c42;
+}
+
+.swatches [data-bg='mat'] {
+  background: #2e6853;
+}
+
+.swatches [data-bg='kraft'] {
+  background: #c99d6a;
+}
+
+.tool {
+  height: 36px;
+  min-width: 36px;
+  display: grid;
+  place-items: center;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tool svg {
+  width: 18px;
+  height: 18px;
+}
+
+#sound {
+  padding: 0;
+}
+
+#sound .icon-off,
+#sound.is-muted .icon-on {
+  display: none;
+}
+
+#sound.is-muted .icon-off {
+  display: block;
+}
+
+/* ── 알림, 파일 끌어 놓기 ─────────── */
+
+.toast {
+  position: fixed;
+  top: 76px;
+  left: 50%;
+  z-index: 5;
+  padding: 9px 16px;
+  transform: translate(-50%, -8px);
+  border-radius: 999px;
+  background: rgba(20, 21, 24, 0.85);
+  color: #fff;
+  font-size: 13px;
+  opacity: 0;
+  transition:
+    opacity 0.2s,
+    transform 0.2s;
+  pointer-events: none;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.drop {
+  position: fixed;
+  inset: 12px;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  border: 3px dashed rgba(255, 255, 255, 0.75);
+  border-radius: 24px;
+  background: rgba(10, 10, 12, 0.45);
+  color: #fff;
+  font-size: 20px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.drop[hidden] {
+  display: none;
+}
+
+@media (max-width: 560px) {
+  .brand h1 {
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    white-space: nowrap;
+  }
+
+  .hint {
+    max-width: 200px;
+  }
+
+  .tool-text {
+    padding: 0 10px;
+    font-size: 12px;
+  }
+}
