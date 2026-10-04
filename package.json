@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "make:wink": "node scripts/make-wink-gif.mjs",
     "postversion": "git push --follow-tags"
   },
   "dependencies": {

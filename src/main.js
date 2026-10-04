@@ -13,6 +13,8 @@ const SHEET_FILL = 0.86; // 시트 칸에서 스티커가 차지하는 비율
 const MIN_SCALE = 0.35;
 const MAX_SCALE = 3;
 const MAX_SAVED_BYTES = 15_000_000; // 이보다 큰 움직이는 이미지는 지금만 쓰고 저장하지 않음
+const STATE_VERSION = 2; // 2: 기본 GIF 스티커(윙크) 추가
+const GIF_PRESETS = { wink: 'stickers/wink.gif' }; // 기본 GIF 스티커 (scripts/make-wink-gif.mjs 로 만듦)
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -122,11 +124,16 @@ function animateDesigns(dt) {
   return changed;
 }
 
-function addDesign(design) {
-  designs.push(design);
+function addDesign(design, { first = false } = {}) {
   design.slot = document.createElement('div');
   design.slot.className = 'slot';
-  els.slots.insertBefore(design.slot, els.add);
+  if (first) {
+    designs.unshift(design);
+    els.slots.prepend(design.slot);
+  } else {
+    designs.push(design);
+    els.slots.insertBefore(design.slot, els.add);
+  }
   design.sheetSticker = makeSticker(design, { onSheet: true });
   layoutSheet();
 }
@@ -841,7 +848,7 @@ function save() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     store.set('state', {
-      version: 1,
+      version: STATE_VERSION,
       background,
       sound: soundOn,
       designs: designs.map(({ id, kind, preset }) => ({ id, kind, preset })),
@@ -877,12 +884,24 @@ async function restore() {
     const design = byId.get(p.design);
     if (design) makeSticker(design, { x: p.x * innerWidth, y: p.y * innerHeight, rotation: p.rotation, scale: p.scale });
   }
+  // 버전 2 에서 기본 GIF 스티커(윙크)가 생김 → 예전에 저장된 판에도 시트 맨 앞에 한 번 넣어 줌
+  if ((state.version ?? 1) < 2 && !designs.some((d) => d.preset === 'wink')) {
+    const wink = await presetDesign('wink');
+    if (wink) addDesign(wink, { first: true });
+    save();
+  }
   return true;
 }
 
 /** 저장된 도안을 다시 프레임으로 (정지 이미지는 한 장) */
 async function framesOf(meta) {
-  if (meta.kind === 'preset') return PRESETS.includes(meta.preset) ? [{ image: presetSource(meta.preset) }] : null;
+  if (meta.kind === 'preset') {
+    if (GIF_PRESETS[meta.preset]) {
+      const response = await fetch(import.meta.env.BASE_URL + GIF_PRESETS[meta.preset]).catch(() => null);
+      return response?.ok ? decodeFrames(await response.blob()).catch(() => null) : null;
+    }
+    return PRESETS.includes(meta.preset) ? [{ image: presetSource(meta.preset) }] : null;
+  }
   const blob = await store.get(`blob:${meta.id}`);
   if (!blob) return null;
   const animated = await decodeFrames(blob).catch(() => null);
@@ -891,17 +910,25 @@ async function framesOf(meta) {
   return image ? [{ image }] : null;
 }
 
-// 처음 열면 기본 스티커들 + 판에 몇 장 붙여 둠
-function seed() {
-  for (const preset of PRESETS) {
-    addDesign(buildDesign({ id: `preset-${preset}`, kind: 'preset', preset }, [{ image: presetSource(preset) }]));
+/** 기본 스티커 도안 (GIF 기본 스티커는 public/stickers 에서 받아 옴) */
+async function presetDesign(preset) {
+  const meta = { id: `preset-${preset}`, kind: 'preset', preset };
+  const frames = await framesOf(meta);
+  return frames ? buildDesign(meta, frames) : null;
+}
+
+// 처음 열면 기본 스티커들 (움직이는 윙크가 맨 앞) + 판에 몇 장 붙여 둠
+async function seed() {
+  for (const preset of [...Object.keys(GIF_PRESETS), ...PRESETS]) {
+    const design = await presetDesign(preset);
+    if (design) addDesign(design);
   }
   const find = (preset) => designs.find((d) => d.preset === preset);
   const W = innerWidth;
   const H = innerHeight;
   makeSticker(find('wow'), { x: W * 0.3, y: H * 0.33, rotation: -0.14 });
   makeSticker(find('heart'), { x: W * 0.67, y: H * 0.3, rotation: 0.18 });
-  makeSticker(find('smile'), { x: W * 0.5, y: H * 0.5, rotation: -0.05 });
+  makeSticker(find('wink') ?? find('smile'), { x: W * 0.5, y: H * 0.5, rotation: -0.05 });
 }
 
 // ── 시작 ───────────────────────────────────────────────
@@ -936,8 +963,8 @@ renderer.setAnimationLoop((now) => {
 });
 
 resize();
-restore().then((restored) => {
-  if (!restored) seed();
+restore().then(async (restored) => {
+  if (!restored) await seed();
   applyBackground();
   applySound();
   layoutSheet();

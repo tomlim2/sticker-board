@@ -10,6 +10,8 @@
 index.html                마크업: 판(#board) / 스티커 시트(#sheet) / WebGL 캔버스(#stage) / HUD
 vite.config.js            base './' (하위 경로 배포용)
 public/favicon.svg
+public/stickers/wink.gif  기본 GIF 스티커 (윙크하는 스마일). scripts/make-wink-gif.mjs 로 만듦
+scripts/make-wink-gif.mjs 위 GIF 를 그리는 스크립트 (npm run make:wink)
 src/
   main.js                 진입점. 렌더 루프, 스티커 상태, 입력(벗기기·들기·붙이기), 시트 배치, 파일 넣기, 저장
   sticker-art.js          이미지(프레임들) → 스티커 텍스처·그림자·판정 마스크 (cutSticker), 기본 스티커 6종 (PRESETS)
@@ -34,6 +36,8 @@ src/
 5. 칼선을 한 번 더 흐려 그림자, 칼선 알파를 그대로 클릭 판정 마스크로, 칼선의 볼록 껍질은 벗겨진 비율 계산용으로
 
 기본 스티커(smile, heart, star, bolt, wow, hello)는 캔버스에 벡터로 그려서 같은 과정을 거친다.
+움직이는 기본 스티커 `wink` 는 진짜 GIF 파일(`public/stickers/wink.gif`)을 받아서 사용자가 넣은 GIF 와 똑같이 처리한다 (`GIF_PRESETS`).
+GIF 는 캔버스 없이 도형 안팎 판정(4×4 슈퍼샘플링)으로 그리고, GIF 투명도는 켜고 끄기뿐이라 가장자리는 흰색에 섞어 둠 → 흰 칼선 위에서 매끈함.
 
 ## 움직이는 스티커 (GIF, 움직이는 WebP·PNG)
 
@@ -99,7 +103,8 @@ src/
 | `blob:<id>` | 사용자가 넣은 이미지. 정지 이미지는 긴 변 1024 로 줄인 PNG, 움직이는 이미지는 원본 그대로 |
 
 위치는 화면 비율(0~1)로 저장해서 창 크기가 달라도 비슷한 자리에 놓인다. `placed` 는 아래 → 위 순서.
-저장이 없으면(처음) 기본 스티커 6종 + 판에 3장을 붙여 시작 (`seed`).
+저장이 없으면(처음) 기본 스티커 7종(윙크 GIF 가 맨 앞) + 판에 3장(가운데가 윙크)을 붙여 시작 (`seed`).
+`STATE_VERSION` 2 부터 윙크가 생겨서, 버전 1 로 저장된 판엔 불러올 때 시트 맨 앞에 한 번만 넣어 준다 (판은 그대로).
 
 ## 명령어
 
@@ -107,6 +112,7 @@ src/
 npm run dev      # 개발 서버
 npm run build    # dist/ 빌드
 npm run preview  # 빌드 결과 미리보기
+npm run make:wink  # public/stickers/wink.gif 다시 만들기
 ```
 
 ## 배포
