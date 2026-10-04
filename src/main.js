@@ -7,8 +7,7 @@ import * as sound from './sound.js';
 import './style.css';
 
 const SEGMENTS = 48; // 말릴 때 매끈하게 휘도록 평면을 잘게 나눔
-const DETACH_AT = 0.45; // 이만큼(스티커 길이 대비) 벗겨지면 톡 떨어짐
-const PULL_OFF = 18; // 당기는 쪽 가장자리를 잡았으면 이만큼(px)만 끌어도 떨어짐
+const DETACH_AT = 0.9; // 이만큼(스티커 길이 대비) 벗겨져야 톡 떨어짐. 접힌 끝이 손을 따라오니 스티커 길이의 1.8배쯤 끌어야 함
 const HOLD_FOLLOW = 26; // 들고 있을 때 손을 따라오는 빠르기
 const SHEET_FILL = 0.86; // 시트 칸에서 스티커가 차지하는 비율
 const MIN_SCALE = 0.35;
@@ -409,7 +408,7 @@ window.addEventListener(
       sticker: s,
       grab: hit.local, // 손가락 아래 스티커 위의 점
       pointer: { x: event.clientX, y: event.clientY },
-      mode: 'press', // press → peel(말아 벗기기) 또는 pull(가장자리 잡고 뜯기) → hold
+      mode: 'press', // press → peel(말아 벗기기) → hold
       dir: null,
       dist: 0,
     };
@@ -451,15 +450,7 @@ function peelMove() {
   const dist = Math.hypot(dx, dy);
   if (action.mode === 'press') {
     if (dist * s.scale < 5) return;
-    // 끄는 방향 쪽 가장자리를 잡았으면 그냥 뜯어내고, 아니면 반대쪽부터 말아 올리며 벗김
-    const dir = { x: dx / dist, y: dy / dist };
-    const toEdge = extent(s.design.bounds, dir).max - (action.grab.x * dir.x + action.grab.y * dir.y);
-    action.mode = toEdge < s.design.size * 0.22 ? 'pull' : 'peel';
-    if (action.mode === 'pull') s.liftTarget = 0.35;
-  }
-  if (action.mode === 'pull') {
-    if (dist * s.scale > PULL_OFF) detach();
-    return;
+    action.mode = 'peel'; // 어디를 잡든 끄는 반대쪽 가장자리부터 말아 올리며 벗김
   }
   if (dist < 0.5) {
     s.peel = null;

@@ -63,9 +63,8 @@ src/
 ## 조작 흐름 (main.js)
 
 ```
-누름(press) ─┬─ 당기는 쪽 가장자리를 잡음 → pull: PULL_OFF(18px) 끌면 떨어짐
-             └─ 그 밖 → peel: 끄는 반대쪽 가장자리부터 말려 올라옴 (setPeel)
-                         벗겨진 비율 ≥ DETACH_AT(0.45) 이면 떨어짐
+누름(press) → 5px 넘게 끌면 peel: 어디를 잡았든 끄는 반대쪽 가장자리부터 말려 올라옴 (setPeel)
+             벗겨진 비율 ≥ DETACH_AT(0.9) 이어야 떨어짐. 접힌 끝이 손을 따라오니 스티커 길이의 약 1.8배를 끌어야 함
 떨어짐(detach) → 들기(hold): 잡은 점이 손가락 밑으로 따라옴, 옆으로 흔들면 기울어짐
 놓음 ─┬─ 시트 위 → 돌려놓기 (판에서 사라짐)
       └─ 판 위   → 붙이기 (꾹 눌리는 스프링 + 소리)
@@ -79,7 +78,7 @@ src/
 - 이미지 넣기: 시트의 + / 화면에 끌어다 놓기(판 위면 그 자리에 한 장 붙음) / ⌘V 붙여 넣기. PNG·JPG·GIF·WebP 등 브라우저가 읽는 건 다 됨
 - 창이 포커스를 잃으면(blur) 들고 있던 걸 놓음
 
-주요 상수(`main.js` 위): `DETACH_AT`, `PULL_OFF`, `HOLD_FOLLOW`, `SHEET_FILL`, `MIN_SCALE`/`MAX_SCALE`, `MAX_SAVED_BYTES`.
+주요 상수(`main.js` 위): `DETACH_AT`, `HOLD_FOLLOW`, `SHEET_FILL`, `MIN_SCALE`/`MAX_SCALE`, `MAX_SAVED_BYTES`.
 판 위 스티커 크기는 `boardSize()` (화면 짧은 변의 24%, 110~190px).
 
 ## 렌더 루프: 60fps 고정
